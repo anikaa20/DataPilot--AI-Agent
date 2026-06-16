@@ -1,211 +1,134 @@
-# Data-Pilot
+# DataPilot: Automating the Repetitive, Amplifying the Analytical
 
-An interactive, terminal-first data-science copilot powered by the `openai-agents` runtime. Data-Pilot wraps an opinionated analysis agent ("Vanessa") with a rich CLI, a curated toolbelt for filesystem, dataset, and automation tasks, and a sandboxed workspace under `./root` for reproducible experiments.
+## Project Background
 
----
+Data science workflows are riddled with repetitions like dataset profiling, quality checks, baseline modeling, artifact logging. These tasks are necessary but rarely where an analyst's time is best spent. Data-Pilot was built to absorb that overhead. **Can a terminal-first AI copilot handle the mechanical groundwork of data analysis so analysts can focus on what actually requires judgment?**
 
-## Why Data-Pilot?
+DataPilot is an interactive, terminal-first data-science copilot powered by the `openai-agents` runtime. It wraps an opinionated analysis agent **Vanessa** with a rich CLI, a curated toolbelt for filesystem, dataset, and automation tasks, and a sandboxed workspace under `./root` for reproducible experiments.
 
-- **Single command workflow** – launch `main.py` and immediately chat with an agent that can plan analyses, execute Python, and summarize results.
-- **Dataset-first guardrails** – the agent insists on a dataset path under `./root` before taking action, ensuring provenance and reproducibility.
-- **Batteries-included tooling** – filesystem management, dataset profiling, automated baselines, and arbitrary Python execution are exposed as safe tools.
-- **Beautiful terminal UX** – the Rich-powered CLI streams reasoning, tool calls, and responses with slash commands for help, history, and clearing state.
-- **Extensible agent stack** – plug in new tools or handoff agents with a few lines of configuration thanks to the `my_agent` wrapper.
+![image](https://github.com/anikaa20/DataPilot--AI-Agent/blob/main/data_pilot_architecture.png)
 
----
+The system is organized around four capability pillars:
 
-## Table of Contents
+- **Agent Core**: Vanessa's planning loop, dataset-first guardrails, and turn management
+- **Toolbelt**: filesystem operations, dataset profiling, code execution, and automated modeling
+- **CLI Experience**: Rich-powered streaming interface with slash commands and session control
+- **Extensibility**: plug-in architecture for new tools, agents, and handoff configurations
 
-1. [Architecture Overview](#architecture-overview)
-2. [Prerequisites](#prerequisites)
-3. [Installation](#installation)
-4. [Configuration](#configuration)
-5. [Running the CLI](#running-the-cli)
-6. [Working with Datasets](#working-with-datasets)
-7. [Available Tools](#available-tools)
-8. [Automation Workflow](#automation-workflow)
-9. [Extending the Agent](#extending-the-agent)
-10. [Troubleshooting](#troubleshooting)
-11. [Project Roadmap](#project-roadmap)
-12. [License](#license)
+Full project repository → [`Data-Pilot`](https://github.com/anikaa20/DataPilot--AI-Agent)
 
 ---
 
 ## Architecture Overview
 
+**Source:** Single-agent system with a modular toolbelt, `openai-agents` runtime + `LitellmModel` bridge
+
+**Repository structure:** 9 core modules across `cli/`, `config/`, `my_agents/`, `tools/`, and `root/`
+
 ```
 Data-Pilot/
-├── main.py                  # Async entrypoint that launches the CLI and agent
+├── main.py                  # Async entrypoint launches the CLI and agent loop
 ├── cli/
 │   └── ui.py                # Rich UI, slash commands, streaming visualizer
 ├── config/
-│   └── agent_config.py      # Version, turn limits, and environment-based config
+│   └── agent_config.py      # Version, turn limits, environment-based config
 ├── my_agents/
-│   ├── base_agent.py        # `my_agent` wrapper around openai-agents runtime
+│   ├── base_agent.py        # my_agent wrapper around openai-agents runtime
 │   └── analysis_agent/      # Vanessa's prompt, tools, and handoff metadata
 ├── tools/
-│   ├── data_tools.py        # Dataset overview/quality/correlation reports
-│   ├── automation_tools.py  # Automated modeling pipeline + artifact logging
+│   ├── data_tools.py        # Dataset overview, quality, and correlation reports
+│   ├── automation_tools.py  # End-to-end modeling pipeline + artifact logging
 │   ├── filesystem_tools.py  # Sandboxed file ops within ./root
-│   ├── misc_tools.py        # `execute_code` + timestamps
+│   ├── misc_tools.py        # execute_code + timestamps
 │   └── utils/               # Sandbox, dataset, and code-execution helpers
-├── root/                    # User-editable sandbox for datasets + outputs
+├── root/                    # User-editable sandbox for datasets and outputs
 └── README.md
 ```
 
-**Control Flow**
-
-1. `main.py` runs `cli.ui.run_cli`, which greets the user and starts an interactive loop.
-2. The CLI delegates user turns to `analysis_agent.agent`, an instance of `my_agent` configured with:
-   - The Vanessa system prompt (`analysis_agent/prompt.py`).
-   - Toolbelt aggregated from `misc`, `filesystem`, `data`, and `automation` modules.
-   - A `LitellmModel` that bridges to the configured Cerebras/OpenAI-compatible endpoint.
-3. During a run, the CLI streams reasoning tokens, tool calls, and handoffs, while enforcing `MAX_TURNS` (default: 20).
-4. Any artifacts or datasets are manipulated inside `./root`, preventing accidental edits to repository code.
+| Control Flow Step | What Happens |
+|---|---|
+| Launch | `main.py` runs `cli.ui.run_cli`, greeting the user and opening the interactive loop |
+| Delegation | CLI delegates user turns to `analysis_agent.agent`, a `my_agent` instance with Vanessa's prompt and full toolbelt |
+| Execution | CLI streams reasoning tokens, tool calls, and handoffs while enforcing `MAX_TURNS` (default: 20) |
+| Sandboxing | All artifacts and datasets are manipulated inside `./root`; Repository code is never touched |
 
 ---
 
-## Prerequisites
+## Why DataPilot
 
-- **Python** ≥ 3.10.
-- **pip** or **uv**.
-- An API key that is compatible with the `openai-agents` SDK (the default config expects Cerebras).
-- (Optional) `uv` 0.4+ for fast dependency syncs.
+Data-Pilot is not a generic chatbot wrapper. Every design decision reinforces a single principle: **the agent should do the mechanical work, not just describe it.**
+
+* Vanessa insists on a dataset path under `./root` before taking any action as provenance and reproducibility are non-negotiable, not optional.
+* The `execute_code` tool runs actual Python in a sandboxed environment, logging XML-formatted stdout/stderr for full transparency on every step.
+* `automated_modeling_workflow` delivers a complete baseline modeling pass such as preprocessing, training, evaluation, and artifact logging in a single tool call, without the analyst writing a line of boilerplate.
+* The Rich-powered CLI streams reasoning and tool calls in real time, so the analyst sees *what* Vanessa is doing and *why* at every turn and not just a final answer.
+* The `my_agent` wrapper makes the entire stack extensible: new tools, new agents, and multi-agent handoffs require minimal configuration changes.
 
 ---
 
-## Installation
+## Capabilities Deep Dive
 
-> All commands assume a Windows PowerShell terminal. Adjust paths if you are on macOS/Linux.
+### Capability 1: Agent Core & Dataset Guardrails
+* Vanessa opens every session by collecting five inputs: dataset path, business objective, target variable, success criteria, and constraints. No action is taken until this context is established.
+* `MAX_TURNS` (default: 20) enforces a hard ceiling on agentic loops, preventing runaway execution without analyst oversight.
+* Supported dataset formats span CSV, TSV, JSON/NDJSON, Parquet, and Excel. The agent auto-detects format and surfaces schema details before committing to any analysis plan.
+
+### Capability 2: Toolbelt: From Filesystem to Modeling
+* **Filesystem tools** (`list_files`, `read_file`, `write_file`, `edit_file_section`, and more) are fully sandboxed to `./root`. The agent cannot escape the workspace boundary by design.
+* **Data tools** (`dataset_overview`, `dataset_quality_report`, `dataset_correlation_report`) deliver instant EDA snapshots: schema, missingness, cardinality, numeric/categorical stats, and correlations without the analyst writing profiling code.
+* **Automation tools** (`automated_modeling_workflow`) run end-to-end baseline pipelines: feature preprocessing, model training, metric logging (accuracy, F1, ROC-AUC for classification; R²/MAE/RMSE for regression), and artifact export to `root/analysis_outputs/<session>/`.
+* **Misc tools** (`execute_code`, `get_current_datetime`) handle arbitrary Python execution with timeout enforcement and timestamped session tracking.
+
+### Capability 3: CLI Experience
+* The Rich-powered interface streams reasoning, tool invocations, and responses in real time enabling analysts to see the agent's work as it unfolds, not after the fact.
+* Slash commands give session-level control without breaking the conversational flow:
+
+| Command | Aliases | Description |
+|---|---|---|
+| `/help` | `/h` | Display available commands |
+| `/history` | `/hs` | Show current conversation transcript |
+| `/clear` | `/c` | Clear the screen |
+| `/clear_history` | `/ch` | Erase stored conversation memory |
+| `/quit` | `/exit`, `/q` | Exit the program gracefully |
+
+* **Ctrl+X** interrupts a streaming response mid-execution. This is useful when Vanessa's plan needs course correction before it completes.
+
+### Capability 4: Extensibility & Multi-Agent Architecture
+* New tools require a single decorated Python function appended to any tool list. `my_agent` automatically merges them into the agent at instantiation.
+* New agents follow a lightweight convention: define a prompt and config under `my_agents/<name>/`, register in `agent_config.py`, and instantiate via `my_agent`.
+* Handoffs are first-class: `analysis_agent.add_handoffs(other_agent)` enables multi-agent collaboration while preserving Vanessa as the orchestrator thus no rewiring of the base agent required.
+
+---
+
+## Setup & Installation
 
 ```powershell
-# Clone the repository
-# git clone https://github.com/<you>/Data-Pilot.git
-# cd Data-Pilot
-
-# Create & activate a virtual environment
+# Create and activate a virtual environment
 python -m venv .venv
 .\.venv\Scripts\activate
 
-# Install dependencies (choose one)
-pip install -r requirements.txt
-# or
-uv sync
-```
+# Install dependencies
+pip install -r requirements.txt   # or: uv sync
 
----
+# Configure environment variables
+# Copy .env.example → .env and populate:
+# CEREBRAS_BASE_URL   e.g. https://api.cerebras.ai/v1
+# ANALYSIS_API_KEY    your API token for the selected model
 
-## Configuration
-
-1. Copy `.env.example` to `.env`
-2. Populate the variables:
-   - `CEREBRAS_BASE_URL` – e.g., `https://api.cerebras.ai/v1` or another OpenAI-compatible endpoint.
-   - `ANALYSIS_API_KEY` – the API token authorized to call the selected model.
-
-At runtime `config/agent_config.py` reads these values and injects them into the `LitellmModel` wrapper.
-
----
-
-## Running the CLI
-
-```bash
+# Launch
 python main.py
 ```
 
-What you will see:
-
-- A Rich splash screen.
-- Prompted user input area. Vanessa immediately asks for:
-  1. Dataset path (relative to `./root`).
-  2. Business objective, target variable, success criteria, output expectations, and constraints.
-- Streaming output panes showing reasoning, tool invocations, and responses.
-
-### Slash Commands
-
-| Command        | Aliases                | Description                          |
-| -------------- | ---------------------- | ------------------------------------ |
-| `/help`        | `/h`                   | Display available commands           |
-| `/history`     | `/hs`                  | Show current conversation transcript |
-| `/clear`       | `/c`                   | Clear the screen                     |
-| `/clear_history` | `/ch`                | Erase stored conversation memory     |
-| `/quit`        | `/exit`, `/q`          | Exit the program gracefully          |
-
-Keyboard shortcut **Ctrl+X** interrupts a streaming response.
+* **Python ≥ 3.10** required. Compatible with any OpenAI-SDK-compatible endpoint, cerebras is the default but not the only option.
+* Place datasets under `root/` and reference them with relative paths (e.g., `data/loans.csv`). Anything outside `./root` is inaccessible to the agent by design.
+* Generated outputs such as cleaned data, charts, trained models are written to `root/analysis_outputs/<session>/` automatically.
 
 ---
 
-## Working with Datasets
+## Assumptions & Caveats
 
-- Place datasets under the repository's `root/` directory. Anything outside that sandbox is inaccessible to the agent.
-- Supported formats: CSV, TSV, TXT, JSON/NDJSON, Parquet, Excel (`.xlsx/.xls`).
-- Refer to files via relative paths like `data/loans.csv` (which resolves to `root/data/loans.csv`).
-- Generated outputs (cleaned data, charts, models) should be written under `root/analysis_outputs/<session>` - the prompt and automation tools reinforce this convention.
-
-### Typical Session Flow
-
-1. **Clarify scope** – provide dataset path + business question.
-2. **Planning** – Vanessa drafts an ingestion → EDA → modeling roadmap.
-3. **Execution** – The agent runs Python via the `execute_code` tool, logging XML-formatted stdout/stderr for transparency.
-4. **Reporting** – Insights, metrics, and saved artifacts are summarized back to you along with next steps/questions.
-
----
-
-## Available Tools
-
-| Module | Tool(s) | Highlights |
-| ------ | ------- | ---------- |
-| `tools.misc_tools` | `get_current_datetime`, `execute_code` | Timestamping plus sandboxed Python runner with timeout + XML result payloads. |
-| `tools.filesystem_tools` | `list_files`, `read_file`, `write_file`, `create_directory`, `delete_*`, `move_file`, `copy_file`, `edit_file_section`, `append_to_file` | Guarded by a sandbox (`tools/utils/filesystem.py`) to prevent escaping `./root`. |
-| `tools.data_tools` | `dataset_overview`, `dataset_quality_report`, `dataset_correlation_report` | Quick EDA snapshots: schema, missingness, cardinality, numeric/categorical stats, and correlations. |
-| `tools.automation_tools` | `automated_modeling_workflow` | End-to-end baseline training (preprocessing pipelines, RandomForest/Linear/Logistic baselines, metrics, artifact logging). |
-
-Each tool is registered with `agents.function_tool`, making it callable by the agent planner. Add new tools by defining a Python callable and appending it to the relevant tool list before constructing the agent.
-
----
-
-## Automation Workflow
-
-`automated_modeling_workflow` delivers a turnkey baseline modeling pass:
-
-1. Loads the dataset (with optional sampling) and verifies the target column exists.
-2. Splits numeric vs categorical features, imputes missing values, scales/encodes, and builds a `ColumnTransformer` pipeline.
-3. Trains Logistic/Linear Regression plus Random Forest variants depending on the inferred problem type.
-4. Logs metrics (accuracy, precision, recall, F1, ROC-AUC for classification; R²/MAE/RMSE for regression) into `root/analysis_outputs/<timestamp>/metrics.json`.
-5. Returns a markdown summary with feature space metadata and artifact pointers.
-
-Customize behavior through arguments like `test_size`, `random_state`, `artifact_subdir`, or by editing `tools/automation_tools.py`.
-
----
-
-## Extending the Agent
-
-1. **New tool** - implement a function, decorate with `@function_tool`, and add it to one of the tool lists (or create a new list) before instantiating the agent.
-2. **New agent** - define a prompt + config under `my_agents/<name>/`, register it inside `config/agent_config.py`, and instantiate via `my_agent`.
-3. **Handoffs** - call `analysis_agent.add_handoffs(other_agent)` to enable multi-agent collaboration while preserving Vanessa as the orchestrator.
-4. **UI tweaks** - customize `cli/ui.py` to alter the streaming layout, add telemetry, or integrate additional slash commands.
-
-Because `my_agent` automatically merges tools and handoff metadata into the underlying `Agent` from `openai-agents`, most changes involve minimal code.
-
----
-
-## Troubleshooting
-
-| Symptom | Likely Cause | Fix |
-| ------- | ------------ | --- |
-| `dataset_overview failed: Dataset not found` | Path not under `./root` or typo | Confirm the file exists inside `root/` and reference it relatively (e.g., `data/file.csv`). |
-| `Unsupported dataset format` | Extension not in the supported list | Convert the file to CSV/Parquet/Excel or extend `SUPPORTED_DATASET_EXTENSIONS`. |
-| `automated_modeling_workflow failed: target column ... missing` | Wrong column name | Run `dataset_overview` to inspect columns, then rerun with the correct `target_column`. |
-| `pandas is required for dataset tooling` | Pandas/pyarrow/openpyxl missing | Reinstall dependencies via `pip install -r requirements.txt` (ensure virtualenv is active). |
-| CLI exits immediately with `System error` | Missing/invalid API credentials | Re-check your `.env` values and confirm the account has quota for the selected model. |
-
-Enable verbose debugging by adding prints/logging in the relevant tool module; the CLI surfaces tracebacks directly in the streaming pane.
-
----
-
-Contributions are welcome—open discussions or PRs targeting any roadmap item.
-
----
-
-## License
-
-MIT
+* **Sandbox boundary is enforced, not foolproof.** `./root` isolation prevents accidental repository edits during normal use, but it is a path-guard convention, not a containerized security boundary. Do not expose Data-Pilot to untrusted dataset inputs in production environments without additional hardening.
+* **`MAX_TURNS = 20` is a safeguard, not a ceiling for complex tasks.** Long analyses may require the analyst to continue across multiple sessions; single-session completeness is not guaranteed for large or deeply nested workflows.
+* **Baseline models are starting points, not final answers.** `automated_modeling_workflow` produces benchmark metrics to orient the analysis  such as -> hyperparameter tuning, feature engineering, and model selection remain the analyst's responsibility.
+* **API dependency introduces latency and quota risk.** Vanessa's planning and execution loops consume API tokens per turn; high-`MAX_TURNS` sessions on large datasets can exhaust quota faster than expected. Monitor usage during extended runs.
+* **Cerebras is the default endpoint but not a hard requirement.** Any OpenAI-SDK-compatible API can be substituted via `.env`.Model behavior and performance will vary depending on the underlying provider.
